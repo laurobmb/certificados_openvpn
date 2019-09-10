@@ -1,5 +1,6 @@
 #!/bin/bash
 
+clear
 echo "#########################
 # Servidor de OpenVPN   #
 #########################"
@@ -8,21 +9,25 @@ echo " "
 echo " "
 echo " "
 
-echo "Digite o Endereço do servidor de VPN [192.168.10.2]:"
+echo "Digite o endereço interno do servidor de VPN [192.168.1.20]:"
 read ip
-if [ -z $ip ];then ip="192.168.10.2"; fi
+if [ -z $ip ];then ip="192.168.1.20"; fi
 
-echo "Digite o Endereço externo do servidor e VPN [openvpn.com.br]:"
+echo "Digite o endereço externo do servidor e VPN [201.182.55.120]:"
 read ipext
-if [ -z $ipext ];then ipext="openvpn.com.br"; fi
+if [ -z $ipext ];then ipext="201.182.55.120"; fi
+
+echo "Digite o dominio do servidor de VPN [laurodepaula.com.br]:"
+read domi
+if [ -z $domi ];then domi="laurodepaula.com.br"; fi        
 
 echo "Digite a porta de escuta do servidor de VPN [1194]:"
 read port
 if [ -z $port ];then port="1194"; fi
 
-echo "Digite o mone do clente que vai usar a VPN [fulano]:"
+echo "Digite o mone do clente que vai usar a VPN [raspi]:"
 read cliente
-if [ -z $cliente ];then cliente="fulano"; fi
+if [ -z $cliente ];then cliente="raspi"; fi
 
 echo "Criando um certificado DH"
 openssl dhparam -out dh2048.pem 2048
@@ -39,7 +44,7 @@ openssl genrsa -out rootCA.key 2048
 sleep 1
 
 echo "Gerando certificado autoassinado da CA"
-openssl req -out rootCA.cert -key rootCA.key -new -x509 -days 3650 -subj "/C=BR/ST=Pernambuco/L=Recife/O=Suporte Avancado/O=Security/CN=laurodepaula.com.br"
+openssl req -out rootCA.cert -key rootCA.key -new -x509 -days 3650 -subj "/C=BR/ST=Pernambuco/L=Recife/O=Suporte Avancado/O=Security/CN=root.$domi"
 sleep 1
 
 #Certificado do servidor
@@ -48,7 +53,7 @@ openssl genrsa -out VPNserver.key 2048
 sleep 1
 
 echo "Gerando certificado do servidor"
-openssl req -out VPNserver.req -key VPNserver.key -new -days 365 -subj "/C=BR/ST=Pernambuco/L=Recife/O=Suporte Avancado/O=Security/CN=laurodepaula.com.br"
+openssl req -out VPNserver.req -key VPNserver.key -new -days 365 -subj "/C=BR/ST=Pernambuco/L=Recife/O=Suporte Avancado/O=Security/CN=server.$domi"
 sleep 1
 
 echo "Assinando o certificado do servidor com a CA"
@@ -61,25 +66,24 @@ local $ip
 port $port
 proto udp
 dev tun
-
 #alterar a rede conforme seu ambiente
-server 10.8.250.0 255.255.255.248
-
+server 10.8.250.0 255.255.255.240
 #Alterar a rota conforme seu ambiente
-push "route 192.168.20.0 255.255.255.0"
-
+push "route 192.168.0.0 255.255.255.0"
+push "route 192.168.1.0 255.255.255.0"
+push "route 192.168.2.0 255.255.255.0"
+push "route 192.168.3.0 255.255.255.0"
 duplicate-cn
 keepalive 10 120
 comp-lzo
+cipher AES-256-CBC
 persist-key
 persist-tun
-status openvpn-status.log
 verb 3
 key-direction 0
-duplicate-cn
-log              /var/log/openVPN-$cliente.log
-log-append       /var/log/openVPN-$cliente-append.log
-status           /var/log/openVPN-$cliente-status.log
+log             /var/log/openvpn-$cliente.log
+log-append      /var/log/openvpn-$cliente-append.log
+status          /var/log/openvpn-$cliente-status.log
 
 <ca>
 `cat rootCA.cert`
@@ -114,7 +118,7 @@ for k in ${c[*]};do
         sleep 1
 
         echo "Gerando requisição do certificado do cliente $k"
-        openssl req -sha256 -new -key $k.key -outform PEM -out $k.csr -subj "/C=BR/ST=Pernambuco/L=Recife/O=HOME/O=Security/CN=$k.com.br" -new -days 365
+        openssl req -sha256 -new -key $k.key -outform PEM -out $k.csr -subj "/C=BR/ST=Pernambuco/L=Recife/O=HOME/O=Security/CN=$k.$domi" -new -days 365
         sleep 1
 
         echo "Assinando o certificado do cliente $k com a CA"
@@ -126,14 +130,14 @@ for k in ${c[*]};do
 client
 dev tun
 proto udp
+remote $ipext
+port $port
 resolv-retry infinite
 nobind
 persist-key
 persist-tun
 comp-lzo
 verb 3
-remote $ipext
-port $port
 key-direction 1
 
 <ca>
@@ -154,9 +158,14 @@ key-direction 1
 
 EOF
 
-rm -f $k.cert $k.key $k.csr
-
 done
 
+echo "CHECANDO ASSINATURA DA CA COM O CERTIFICADO DO CLIENTE"
+openssl verify -CAfile rootCA.cert -purpose sslclient raspi.cert
+
+echo "CHECANDO ASSINATURA DA CA COM O CERTIFICADO DO SERVIDOR"
+openssl verify -CAfile rootCA.cert -purpose sslserver VPNserver.cert
+
 rm -f rootCA.* VPNserver.* tls* dh*
+rm -f $k.cert $k.key $k.csr
 
