@@ -13,9 +13,9 @@ echo "Digite o endereço interno do servidor de VPN [192.168.1.20]:"
 read ip
 if [ -z $ip ];then ip="192.168.1.20"; fi
 
-echo "Digite o endereço externo do servidor e VPN [201.182.55.120]:"
+echo "Digite o endereço externo do servidor e VPN [231.183.65.120]:"
 read ipext
-if [ -z $ipext ];then ipext="201.182.55.120"; fi
+if [ -z $ipext ];then ipext="231.183.65.120"; fi
 
 echo "Digite o dominio do servidor de VPN [laurodepaula.com.br]:"
 read domi
@@ -26,7 +26,7 @@ read port
 if [ -z $port ];then port="1194"; fi
 
 echo "Digite o mone do clente que vai usar a VPN [raspi]:"
-read cliente
+cliente=$1
 if [ -z $cliente ];then cliente="raspi"; fi
 
 echo "Criando um certificado DH"
@@ -161,7 +161,7 @@ EOF
 done
 
 echo "CHECANDO ASSINATURA DA CA COM O CERTIFICADO DO CLIENTE"
-openssl verify -CAfile rootCA.cert -purpose sslclient raspi.cert
+openssl verify -CAfile rootCA.cert -purpose sslclient $cliente.cert
 
 echo "CHECANDO ASSINATURA DA CA COM O CERTIFICADO DO SERVIDOR"
 openssl verify -CAfile rootCA.cert -purpose sslserver VPNserver.cert
