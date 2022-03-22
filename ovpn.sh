@@ -1,7 +1,8 @@
 #!/bin/bash
 sudo apt install openvpn -y
 ip_ext=`curl ifconfig.me`
-ip_local=`hostname -I`
+ip_local=`hostname -I | awk '{print $1}'`
+interface=`ifconfig | head -n1 | cut -d: -f1`
 
 if [ -z "$1" ];then 
 	clear
@@ -172,7 +173,6 @@ openssl verify -CAfile rootCA.cert -purpose sslserver VPNserver.cert
 rm -f rootCA.* VPNserver.* tls* dh*
 rm -f $k.cert $k.key $k.csr
 
-
 echo "############################### - Configurando SERVIDOR - ###############################"
 
 echo 1 > /proc/sys/net/ipv4/ip_forward
@@ -187,3 +187,5 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now openvpn-server@$1.service
 sudo systemctl status openvpn-server@$1.service
 
+echo "Configurando firewall"
+sudo iptables -t nat -A POSTROUTING -o $interface -j MASQUERADE
