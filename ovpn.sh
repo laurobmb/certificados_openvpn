@@ -1,21 +1,27 @@
 #!/bin/bash
+sudo apt install openvpn -y
+ip_ext=`curl ifconfig.me`
+ip_local=`hostname -I`
+
+if [ -z "$1" ];then 
+	clear
+	echo usage ./ovpn.sh nome_do_cliente; 
+	exit 1;
+fi
 
 clear
-echo "#########################
+echo "
+#########################
 # Servidor de OpenVPN   #
 #########################"
-echo " "
 
-echo " "
-echo " "
-
-echo "Digite o endereço interno do servidor de VPN [192.168.1.20]:"
+echo "Digite o endereço interno do servidor de VPN [$ip_local]:"
 read ip
-if [ -z $ip ];then ip="192.168.1.20"; fi
+if [ -z $ip ];then ip=$ip_local; fi
 
-echo "Digite o endereço externo do servidor e VPN [231.183.65.120]:"
+echo "Digite o endereço externo do servidor e VPN [$ip_ext]:"
 read ipext
-if [ -z $ipext ];then ipext="231.183.65.120"; fi
+if [ -z $ipext ];then ipext=$ip_ext; fi
 
 echo "Digite o dominio do servidor de VPN [laurodepaula.com.br]:"
 read domi
@@ -70,9 +76,6 @@ dev tun
 server 10.8.250.0 255.255.255.240
 #Alterar a rota conforme seu ambiente
 push "route 192.168.0.0 255.255.255.0"
-push "route 192.168.1.0 255.255.255.0"
-push "route 192.168.2.0 255.255.255.0"
-push "route 192.168.3.0 255.255.255.0"
 duplicate-cn
 keepalive 10 120
 comp-lzo
@@ -168,4 +171,19 @@ openssl verify -CAfile rootCA.cert -purpose sslserver VPNserver.cert
 
 rm -f rootCA.* VPNserver.* tls* dh*
 rm -f $k.cert $k.key $k.csr
+
+
+echo "############################### - Configurando SERVIDOR - ###############################"
+
+echo 1 > /proc/sys/net/ipv4/ip_forward
+sudo sysctl -w net.ipv4.ip_forward=1
+
+echo "Movendo arquivos para suas pastas"
+sudo mv $1.conf /etc/openvpn/server/
+sudo mv $1.ovpn /etc/openvpn/client/
+
+echo "Ativando serviço de vpn"
+sudo systemctl daemon-reload
+sudo systemctl enable --now openvpn-server@$1.service
+sudo systemctl status openvpn-server@$1.service
 
