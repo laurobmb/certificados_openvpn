@@ -189,3 +189,7 @@ sudo systemctl status openvpn-server@$1.service
 
 echo "Configurando firewall"
 sudo iptables -t nat -A POSTROUTING -o $interface -j MASQUERADE
+sudo sudo /sbin/iptables-save > /etc/iptables/rules.v4 
+sudo apt-get install iptables-persistent
+sudo systemctl enable --now netfilter-persistent.service
+
