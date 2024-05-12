@@ -1,0 +1,24 @@
+---
+- name: generate certificate x509
+  hosts: localhost
+  tasks:
+
+  - openssl_privatekey:
+      path: conectado.local.pem
+      size: 2048
+  
+  - openssl_csr:
+      path: conectado.local.csr
+      privatekey_path:  conectado.local.pem
+      country_name: BR
+      organization_name: conectado
+      email_address: lagomes@ansible.com
+      common_name: '*.conectado.local'
+
+  - name: Generate a Self Signed OpenSSL certificate
+    openssl_certificate:
+      path: conectado.local.crt
+      privatekey_path: conectado.local.pem
+      csr_path: conectado.local.csr
+      provider: selfsigned
+

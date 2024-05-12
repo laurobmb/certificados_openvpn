@@ -1,0 +1,223 @@
+---
+
+- name: Create private key with password protection
+  community.crypto.openssl_privatekey:
+    path: /tmp/ca-certificate.key
+    passphrase: "{{ secret_ca_passphrase }}"
+    size: 2048
+    cipher: auto
+  delegate_to: localhost
+  run_once: true
+
+- name: Create certificate signing request (CSR) for CA certificate
+  community.crypto.openssl_csr_pipe:
+    privatekey_path: /tmp/ca-certificate.key
+    privatekey_passphrase: "{{ secret_ca_passphrase }}"
+    common_name: Ansible CA
+    country_name: BR
+    state_or_province_name: Pernambuco
+    locality_name: Recife
+    organization_name: Redhat
+    organizational_unit_name: CAPKI
+    email_address: ansible@redhat.com
+    use_common_name_for_san: false  # since we do not specify SANs, don't use CN as a SAN
+    basic_constraints:
+      - 'CA:TRUE'
+    basic_constraints_critical: true
+    key_usage:
+      - keyCertSign
+    key_usage_critical: true
+  register: ca_csr
+  delegate_to: localhost
+  run_once: true
+
+- name: Create self-signed CA certificate from CSR
+  community.crypto.x509_certificate:
+    path: /tmp/ca-certificate.pem
+    csr_content: "{{ ca_csr.csr }}"
+    privatekey_path: /tmp/ca-certificate.key
+    privatekey_passphrase: "{{ secret_ca_passphrase }}"
+    provider: selfsigned
+  delegate_to: localhost
+  run_once: true
+
+########################## Use the CA to sign a certificate ##########################
+
+- name: Create private key for new certificate on localhost
+  community.crypto.openssl_privatekey:
+    path: /tmp/{{ item }}.key
+  delegate_to: localhost
+  loop: "{{ dominios }}"
+  run_once: true
+
+- name: Create certificate signing request (CSR) for new certificate
+  community.crypto.openssl_csr_pipe:
+    privatekey_path: /tmp/{{ item }}.key
+    common_name: "{{ item }}"
+    country_name: BR
+    state_or_province_name: Pernambuco
+    locality_name: Recife
+    organization_name: Redhat
+    organizational_unit_name: Consulting
+    email_address: lagomes@redhat.com
+    subject_alt_name:
+      - "DNS:ansible.com"
+      - "DNS:www.ansible.com"
+      - "DNS:docs.ansible.com"
+  delegate_to: localhost
+  loop: "{{ dominios }}"
+  register: csr
+  run_once: true
+
+- name: Check whether certificate exists
+  ansible.builtin.stat:
+    path: /tmp/{{ item }}.pem
+  delegate_to: localhost
+  loop: "{{ dominios }}"
+  register: certificate_exists
+  run_once: true
+
+- name: DEBUG
+  ansible.builtin.debug:
+    msg: "{{ item.stat.exists }}"
+  loop: "{{ certificate_exists.results }}"
+  when:
+    - debug == 1
+
+- name: Read existing certificate if exists
+  ansible.builtin.slurp:
+    src: /tmp/{{ item.0 }}.pem
+  when: item.1.stat.exists
+  delegate_to: localhost
+  with_together:
+    - "{{ dominios }}"
+    - "{{ certificate_exists.results }}"
+  register: certificate
+  run_once: true
+
+- name: Sign certificate with our CA
+  community.crypto.x509_certificate_pipe:
+    content: "{{ (item.0.content | b64decode) if item.1.stat.exists else omit }}"
+    csr_content: "{{ item.2.csr }}"
+    provider: ownca
+    ownca_path: /tmp/ca-certificate.pem
+    ownca_privatekey_path: /tmp/ca-certificate.key
+    ownca_privatekey_passphrase: "{{ secret_ca_passphrase }}"
+    ownca_not_after: +365d  # valid for one year
+    ownca_not_before: "-1d"  # valid since yesterday
+  delegate_to: localhost
+  with_together:
+    - "{{ certificate.results }}"
+    - "{{ certificate_exists.results }}"
+    - "{{ csr.results }}"
+  register: certificate
+  run_once: true
+
+- name: Write certificate file on localhost
+  ansible.builtin.copy:
+    dest: "{{ dest_diretorio }}/{{ item.0 }}.pem"
+    content: "{{ item.1.certificate }}"
+    mode: '0644'
+  when: item.1 is changed
+  with_together:
+    - "{{ dominios }}"
+    - "{{ certificate.results }}"
+
+
+########################## COPIANDO KEY FILE PARA HOST ##########################
+
+- name: Check whether key file exists
+  ansible.builtin.stat:
+    path: /tmp/{{ item }}.key
+  delegate_to: localhost
+  loop: "{{ dominios }}"
+  register: key_exists
+  run_once: true
+
+- name: DEBUG
+  ansible.builtin.debug:
+    msg: "{{ item.stat.exists }}"
+  loop: "{{ key_exists.results }}"
+  delegate_to: localhost
+  run_once: true
+  when:
+    - debug == 1
+
+- name: Read existing key file if exists
+  ansible.builtin.slurp:
+    src: /tmp/{{ item.0 }}.key
+  when: item.1.stat.exists
+  delegate_to: localhost
+  with_together:
+    - "{{ dominios }}"
+    - "{{ key_exists.results }}"
+  register: keys_slurp
+  run_once: true
+
+- name: DEBUG
+  ansible.builtin.debug:
+    msg: "{{ item }}"
+  loop: "{{ keys_slurp.results }}"
+  delegate_to: localhost
+  run_once: true
+  when:
+    - debug == 1
+
+- name: Write key file file on localhost
+  ansible.builtin.copy:
+    dest: "{{ dest_diretorio }}/{{ item.0 }}.key"
+    content: "{{ (item.2.content | b64decode) if item.1.stat.exists else omit }}"
+    mode: '0644'
+  when: item.1.stat.exists
+  with_together:
+    - "{{ dominios }}"
+    - "{{ key_exists.results }}"
+    - "{{ keys_slurp.results }}"
+
+########################## COPIANDO CA KEY FILE PARA HOST ##########################
+
+- name: Check whether ca key file exists
+  ansible.builtin.stat:
+    path: /tmp/ca-certificate.key
+  delegate_to: localhost
+  register: ca_exists
+  run_once: true
+
+- name: Read existing ca key file if exists
+  ansible.builtin.slurp:
+    src: /tmp/ca-certificate.key
+  when: ca_exists.stat.exists
+  delegate_to: localhost
+  register: ca_slurp
+  run_once: true
+
+- name: Write ca key file file on localhost
+  ansible.builtin.copy:
+    dest: "{{ dest_diretorio }}/ca-certificate.key"
+    content: "{{ (ca_slurp.content | b64decode) if ca_exists.stat.exists else omit }}"
+    mode: '0644'
+  when: ca_exists.stat.exists
+
+########################## COPIANDO CA CRT FILE PARA HOST ##########################
+
+- name: Check whether ca crt file exists
+  ansible.builtin.stat:
+    path: /tmp/ca-certificate.pem
+  delegate_to: localhost
+  register: ca_exists
+  run_once: true
+
+- name: Read existing ca crt file if exists
+  ansible.builtin.slurp:
+    src: /tmp/ca-certificate.pem
+  when: ca_exists.stat.exists
+  delegate_to: localhost
+  register: ca_slurp
+  run_once: true
+
+- name: Write ca crt file file on localhost
+  ansible.builtin.copy:
+    dest: "{{ dest_diretorio }}/ca-certificate.pem"
+    content: "{{ (ca_slurp.content | b64decode) if ca_exists.stat.exists else omit }}"
+    mode: '0644'
+  when: ca_exists.stat.exists

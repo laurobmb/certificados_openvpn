@@ -1,0 +1,17 @@
+---
+- name: GENERATE CERTIFICATE
+  hosts: all
+  gather_facts: false
+  strategy: linear
+  become: true
+  vars:
+    secret_ca_passphrase: 1q2w3e4r
+    dest_diretorio: /etc/ssl
+    dominios:
+      - www.conectado.local
+      - web.conectado.local
+      - teste1.conectado.local
+      - teste2.conectado.local
+  roles:
+    - role: certificate
+

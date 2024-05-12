@@ -1,0 +1,21 @@
+# ansible-navigator settings --effective --pp missing --eei registry.redhat.io/ansible-automation-platform-21/ee-supported-rhel8  --mode stdout > /tmp/ansible-navigator.yml
+---
+ansible-navigator:
+  logging:
+    append: True
+    level: info
+    file: logs/ansible-navigator.log
+  mode: stdout
+  color:
+    enable: true
+  execution-environment:
+    container-engine: podman
+    enabled: true
+    #image: ee-windows-rhel8:v1
+    image: quay.io/lagomes/ee-openssl-rhel8:1.0
+    pull:
+      policy: missing
+  playbook-artifact:
+    enable: true
+    replay: artifacts/ansible_artifact.json
+    save-as: artifacts/ansible_artifact.jsonl

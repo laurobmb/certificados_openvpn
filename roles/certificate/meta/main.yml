@@ -1,0 +1,12 @@
+galaxy_info:
+  author: Lauro Gomes
+  description: This role aims to create a CA certification entity and with a list, informed in the variables, create certificates signed by this CA
+  company: home
+
+  license: license (GPL-2.0-or-later, MIT, etc)
+
+  min_ansible_version: 2.1
+
+  galaxy_tags: []
+
+dependencies: []
