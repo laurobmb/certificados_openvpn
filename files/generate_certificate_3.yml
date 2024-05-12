@@ -1,0 +1,250 @@
+- name: Apache installation and config
+  hosts: apaches
+  become: true
+  gather_facts: false
+  vars:
+    servername:
+      - "{{ ansible_fqdn }}"
+      - "{{ ansible_hostname }}.lab.example.com"
+
+  handlers:
+    - name: Restart HTTPD
+      ansible.builtin.systemd:
+        name: httpd
+        state: restarted
+        enabled: true
+
+    - name: Restart APACHE
+      ansible.builtin.systemd:
+        name: apache2
+        state: restarted
+        enabled: true
+
+  tasks:
+
+    - name: Gather ansible_hostname variable
+      ansible.builtin.setup:
+        gather_subset:
+          - "!all"
+          - "network"
+
+    - name: Install packages REDHAT
+      ansible.builtin.package:
+        name: "{{ item }}"
+        state: present
+      ignore_errors: true
+      loop:
+        - vim
+        - bind-utils
+        - net-tools
+        - git
+      when: ansible_distribution == 'RedHat'
+
+    - name: Install packages DEBIAN
+      ansible.builtin.package:
+        name: "{{ item }}"
+        state: present
+      ignore_errors: true
+      loop:
+        - vim
+        - net-tools
+        - git
+        - bind9-utils
+      when: ansible_distribution != 'RedHat'
+
+    - name: Install httpd DEBIAN
+      ansible.builtin.apt:
+        name: "{{ item }}"
+        state: present
+        update_cache: true
+      loop:
+        - apache2
+      when: ansible_distribution != 'RedHat'
+
+    - name: Install httpd REDHAT
+      ansible.builtin.dnf:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - mod_ssl
+        - httpd
+      notify: Restart HTTPD
+      when: ansible_distribution == 'RedHat'
+
+    - name: Upgrade PIP
+      ansible.builtin.pip:
+        name: pip
+        state: "latest"
+      ignore_errors: true
+
+    - name: Install cryptography
+      ansible.builtin.pip:
+        name: cryptography
+        state: "latest"
+      ignore_errors: true
+
+    - name: Allow firewalld
+      ansible.posix.firewalld:
+        service: "{{ item }}"
+        permanent: true
+        state: enabled
+        zone: public
+        immediate: true
+      loop:
+        - https
+        - http
+      when: ansible_distribution == 'RedHat'
+
+    - name: Copy using inline content
+      ansible.builtin.copy:
+        content: "This is works on {{ inventory_hostname }}"
+        dest: /var/www/html/index.html
+        mode: '0644'
+      notify: Restart HTTPD
+      when: ansible_distribution == 'RedHat'
+
+    - name: Ensure directory exists for local self-signed TLS certs.
+      ansible.builtin.file:
+        path: /var/www/html/{{ item }}
+        state: directory
+        mode: '0755'
+      loop: "{{ servername }}"
+
+    - name: Criando pasta gofer.
+      ansible.builtin.file:
+        path: /opt/gofer/{{ item }}
+        state: directory
+        mode: '0755'
+      loop: "{{ servername }}"
+
+    - name: Criando content inside gofer directory
+      ansible.builtin.copy:
+        content: "This is works on {{ inventory_hostname }}\n"
+        dest: /opt/gofer/{{ item }}/teste.conf
+        mode: '0644'
+      loop: "{{ servername }}"
+
+    - name: Ensure directory exists for local self-signed TLS certs.
+      ansible.builtin.file:
+        path: /etc/ssl/{{ ansible_fqdn }}
+        state: directory
+        mode: '0755'
+
+    - name: Copy using inline content to REDHAT HTTP
+      ansible.builtin.copy:
+        content: |
+          <VirtualHost *:80>
+            ServerName {{ item }}
+            DocumentRoot /var/www/html/{{ item }}
+          </VirtualHost>
+        dest: /etc/httpd/conf.d/{{ item }}-http.conf
+        mode: '0644'
+      notify: Restart HTTPD
+      when: ansible_distribution == 'RedHat'
+      loop: "{{ servername }}"
+      tags: config
+
+    - name: Copy using inline content to DEBIAN HTTP
+      ansible.builtin.copy:
+        content: |
+          <VirtualHost *:80>
+            ServerName {{ item }}
+            DocumentRoot /var/www/html/{{ item }}
+          </VirtualHost>
+        dest: /etc/apache2/sites-available/{{ item }}-http.conf
+        mode: '0644'
+      notify: Restart HTTPD
+      when: ansible_distribution != 'RedHat'
+      loop: "{{ servername }}"
+      tags: config
+
+    - name: Copy using inline content to REDHAT HTTPS
+      ansible.builtin.copy:
+        content: |
+          <VirtualHost *:443>
+            ServerName {{ item }}
+            DocumentRoot /var/www/html/{{ item }}
+            SSLEngine on
+            SSLCertificateFile /etc/ssl/{{ ansible_fqdn }}/{{ item }}-fullchain.crt
+            SSLCertificateKeyFile /etc/ssl/{{ ansible_fqdn }}/{{ item }}-privkey.key
+          </VirtualHost>
+        dest: /etc/httpd/conf.d/{{ item }}.conf
+        mode: '0644'
+      notify: Restart HTTPD
+      when: ansible_distribution == 'RedHat'
+      loop: "{{ servername }}"
+      tags: config
+
+    - name: Copy using inline content to DEBIAN HTTPS
+      ansible.builtin.copy:
+        content: |
+          <VirtualHost *:443>
+            ServerName {{ item }}
+            DocumentRoot /var/www/html/{{ item }}
+            SSLEngine on
+            SSLCertificateFile /etc/ssl/{{ ansible_fqdn }}/{{ item }}-fullchain.crt
+            SSLCertificateKeyFile /etc/ssl/{{ ansible_fqdn }}/{{ item }}-privkey.key
+          </VirtualHost>
+        dest: /etc/apache2/sites-available/{{ item }}.conf
+        mode: '0644'
+      notify: Restart APACHE
+      when: ansible_distribution != 'RedHat'
+      loop: "{{ servername }}"
+      tags: config
+
+    - name: Generate an OpenSSL private key.
+      community.crypto.openssl_privatekey:
+        path: /etc/ssl/{{ ansible_fqdn }}/{{ item }}-privkey.key
+      loop: "{{ servername }}"
+      tags: create-certificado
+
+    - name: Generate an OpenSSL CSR.
+      community.crypto.openssl_csr:
+        path: /etc/ssl/{{ ansible_fqdn }}/{{ item }}.csr
+        privatekey_path: /etc/ssl/{{ ansible_fqdn }}/{{ item }}-privkey.key
+        common_name: "{{ item }}"
+        country_name: BR
+        state_or_province_name: Pernambuco
+        locality_name: Recife
+        organization_name: Redhat
+        organizational_unit_name: Consulting
+        email_address: lagomes@redhat.com
+      loop: "{{ servername }}"
+      tags: create-certificado
+
+    - name: Generate a Self Signed OpenSSL certificate.
+      community.crypto.x509_certificate:
+        path: /etc/ssl/{{ ansible_fqdn }}/{{ item }}-fullchain.crt
+        privatekey_path: /etc/ssl/{{ ansible_fqdn }}/{{ item }}-privkey.key
+        csr_path: /etc/ssl/{{ ansible_fqdn }}/{{ item }}.csr
+        provider: selfsigned
+      loop: "{{ servername }}"
+      tags: create-certificado
+
+    - name: Ensure SSLCertificateFile is changed
+      ansible.builtin.lineinfile:
+        backup: true
+        path: /etc/httpd/conf.d/{{ item }}.conf
+        regexp: 'SSLCertificateFile'
+        line: SSLCertificateFile /etc/ssl/{{ ansible_fqdn }}/{{ item }}-fullchain.crt
+      tags: change-certificate
+      loop: "{{ servername }}"
+      when: ansible_distribution == 'RedHat'
+
+    - name: Ensure SSLCertificateKeyFile is changed
+      ansible.builtin.lineinfile:
+        path: /etc/httpd/conf.d/{{ item }}.conf
+        regexp: 'SSLCertificateKeyFile'
+        line: SSLCertificateKeyFile /etc/ssl/{{ ansible_fqdn }}/{{ item }}-privkey.key
+      tags: change-certificate
+      notify: Restart HTTPD
+      loop: "{{ servername }}"
+      when: ansible_distribution == 'RedHat'
+
+    - name: Copy using inline content
+      ansible.builtin.copy:
+        content: "This is works on {{ inventory_hostname }}"
+        dest: /var/www/html/{{ item }}/index.html
+        mode: '0644'
+      notify: Restart HTTPD, Restart APACHE
+      loop: "{{ servername }}"
