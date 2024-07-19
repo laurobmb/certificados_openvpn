@@ -1,0 +1,179 @@
+---
+
+############## verifica se o certificado existe ou nao 
+- name: Check whether SERVER key file exists on server
+  ansible.builtin.stat:
+    path: "{{ dest_diretorio }}/server.key"
+  register: server_key_exists_on_server
+  run_once: true
+
+- name: Check whether SERVER pem file exists on server
+  ansible.builtin.stat:
+    path: "{{ dest_diretorio }}/server.pem"
+  register: server_pem_exists_on_server
+  run_once: true
+
+- name: Copy server.pem from server
+  ansible.builtin.slurp:
+    src: "{{ dest_diretorio }}/server.pem"
+  register: server_certificate_on_server
+  run_once: true
+  when: server_pem_exists_on_server.stat.exists is true
+
+- name: Copy server.key from server
+  ansible.builtin.slurp:
+    src: "{{ dest_diretorio }}/server.key"
+  register: server_key_on_server
+  run_once: true
+  when: server_pem_exists_on_server.stat.exists is true
+
+- name: Write server.key and server.pem on localhost
+  ansible.builtin.copy:
+    dest: "/tmp/{{ item.source | basename }}"
+    content: "{{ (item.content | b64decode) }}"
+    mode: '0644'
+  loop:
+    - "{{ server_certificate_on_server }}"
+    - "{{ server_key_on_server }}"
+  delegate_to: localhost
+  when: server_pem_exists_on_server.stat.exists is true
+
+############## cria o certificado no container se nao existir no servidor
+- name: Create server's private key for new certificate on localhost
+  community.crypto.openssl_privatekey:
+    path: /tmp/server.key
+  delegate_to: localhost
+  when: server_key_exists_on_server.stat.exists is false
+
+############## Copia o certificado e chave da ca para o container caso a ca nao tenha sido criada no container 
+- name: Copy ca.key and ca.pem from server
+  ansible.builtin.slurp:
+    src: "{{ item }}"
+  loop:
+    - "{{ dest_diretorio }}/ca.pem"
+    - "{{ dest_diretorio }}/ca.key"
+  register: ca_new_slurp
+  run_once: true
+  when: ca_key_exists_on_server.stat.exists is true
+
+# - name: DEBUG
+#   ansible.builtin.debug:
+#     msg: "{{ item.content }}"
+#   loop: "{{ ca_new_slurp.results }}"
+#   delegate_to: localhost
+#   run_once: true
+#   when: ca_key_exists_on_server.stat.exists is true
+
+- name: Write key file fica.key and ca.pem on localhost
+  ansible.builtin.copy:
+    dest: "/tmp/{{ item.source | basename }}"
+    content: "{{ (item.content | b64decode) }}"
+    mode: '0644'
+  loop: "{{ ca_new_slurp.results }}"
+  delegate_to: localhost
+  when: ca_key_exists_on_server.stat.exists is true
+
+############## Cria o certificado do server se ele nao existir no servidor
+
+- name: Check whether server certificate exists
+  ansible.builtin.stat:
+    path: /tmp/server.pem
+  delegate_to: localhost
+  register: server_certificate_exists
+  run_once: true
+
+- name: Create server's certificate signing request (CSR) for new certificate
+  community.crypto.openssl_csr_pipe:
+    privatekey_path: /tmp/server.key
+    common_name: server.openvpn.conectado.local
+    country_name: BR
+    state_or_province_name: Pernambuco
+    locality_name: Recife
+    organization_name: Redhat
+    organizational_unit_name: Consulting
+    email_address: lagomes@redhat.com
+    subject_alt_name:
+      - "DNS:ansible.com"
+      - "DNS:www.ansible.com"
+      - "DNS:docs.ansible.com"
+  delegate_to: localhost
+  register: csr
+  run_once: true
+  when: server_key_exists_on_server.stat.exists is false
+
+# - name: DEBUG
+#   ansible.builtin.debug:
+#     msg: "{{ server_certificate_exists }}"
+
+- name: Read existing server's certificate if exists
+  ansible.builtin.slurp:
+    src: /tmp/server.pem
+  delegate_to: localhost
+  register: server_certificate
+  run_once: true
+  when: 
+    - (server_key_exists_on_server.stat.exists is false)
+    - (server_certificate_exists.stat.exists )
+
+- name: Sign certificate with our CA
+  community.crypto.x509_certificate_pipe:
+    content: "{{ (server_certificate.content | b64decode) if server_certificate_exists.stat.exists else omit }}"
+    csr_content: "{{ csr.csr }}"
+    provider: ownca
+    ownca_path: /tmp/ca.pem
+    ownca_privatekey_path: /tmp/ca.key
+    ownca_privatekey_passphrase: "{{ secret_ca_passphrase }}"
+    ownca_not_after: +365d  # valid for one year
+    ownca_not_before: "-1d"  # valid since yesterday
+  delegate_to: localhost
+  register: certificate
+  run_once: true
+  when:
+    - (server_key_exists_on_server.stat.exists is false)
+
+
+- name: Write server certificate file on localhost
+  ansible.builtin.copy:
+    dest: "/tmp/server.pem"
+    content: "{{ certificate.certificate }}"
+    mode: '0644'
+  when:
+    - (server_key_exists_on_server.stat.exists is false)
+  delegate_to: localhost
+
+############## Cria o certificado do server se ele nao existir no servidor
+
+- name: Read existing key file if exists
+  ansible.builtin.slurp:
+    src: "{{ item }}"
+  when:
+    - (server_key_exists_on_server.stat.exists is false)
+  delegate_to: localhost
+  register: server_pem_and_keys_slurp
+  run_once: true
+  loop:
+    - /tmp/server.key
+    - /tmp/server.pem
+
+- name: Write server's key and pem file on server
+  ansible.builtin.copy:
+    dest: "{{ dest_diretorio }}/{{ item.source | basename }}"
+    content: "{{ (item.content | b64decode) }}"
+    mode: '0644'
+  when:
+    - (server_key_exists_on_server.stat.exists is false)
+  loop: "{{ server_pem_and_keys_slurp.results }}"
+
+########################## Gerando arquivos do OPENVPN ##########################
+# 
+# - name: Create file server.conf
+#   ansible.builtin.template:
+#     src: server.conf.j2
+#     dest: /etc/openvpn/server/server-{{ item.0.name.split('@')[0] | lower | regex_replace('[.|_]', '') }}.conf
+#     mode: '0644'
+#     owner: root
+#     group: root
+#   with_together:
+#     - "{{ user_openvpn }}"
+# 
+# 

@@ -1,0 +1,53 @@
+---
+
+- name: Catch tls.key file on server
+  ansible.builtin.slurp:
+    src: "{{ dest_diretorio }}/tls.key"
+  register: tls_certificate_on_server
+  run_once: true
+
+- name: Catch dhparams.key file on server
+  ansible.builtin.slurp:
+    src: "{{ dest_diretorio }}/dhparams.key"
+  register: dh_certificate_on_server
+  run_once: true
+
+- name: Catch server certificate file on server
+  ansible.builtin.slurp:
+    src: "{{ dest_diretorio }}/server.pem"
+  register: server_certificate_on_server
+  run_once: true
+
+- name: Catch server key file on server
+  ansible.builtin.slurp:
+    src: "{{ dest_diretorio }}/server.key"
+  register: server_key_on_server
+  run_once: true
+
+- name: Catch ca certificate file on server
+  ansible.builtin.slurp:
+    src: "{{ dest_diretorio }}/ca.pem"
+  register: ca_certificate_on_server
+  run_once: true
+
+- name: Catch ca key file on server
+  ansible.builtin.slurp:
+    src: "{{ dest_diretorio }}/ca.key"
+  register: ca_key_on_server
+  run_once: true
+
+- name: Catch existing key file if exists
+  ansible.builtin.slurp:
+    src: /{{ dest_diretorio }}/{{ item.0.name.split('@')[0] | lower | regex_replace('[.|_]', '') }}.key
+  with_together:
+    - "{{ user_openvpn }}"
+  register: keys_clients_on_server
+  run_once: true
+
+- name: Catch existing certificate file if exists
+  ansible.builtin.slurp:
+    src: /{{ dest_diretorio }}/{{ item.0.name.split('@')[0] | lower | regex_replace('[.|_]', '') }}.pem
+  with_together:
+    - "{{ user_openvpn }}"
+  register: pem_clients_on_server
+  run_once: true

@@ -12,7 +12,7 @@ ansible-navigator:
     container-engine: podman
     enabled: true
     #image: ee-windows-rhel8:v1
-    image: quay.io/lagomes/ee-openssl-rhel8:v1
+    image: quay.io/lagomes/ee-openvpn:v1
     pull:
       policy: missing
   playbook-artifact:

@@ -1,0 +1,56 @@
+---
+
+################################# DH KEY ##########################################
+
+- name: Check whether DH key file exists on server
+  ansible.builtin.stat:
+    path: "{{ dest_diretorio }}/dhparams.key"
+  register: dh_exists_on_server
+  run_once: true
+
+# - name: Debug
+#   ansible.builtin.debug:
+#     msg: "{{ dh_exists_on_server }}"
+
+- name: Generate DH Parameters with a different size (2048 bits)
+  community.crypto.openssl_dhparam:
+    path: /tmp/dhparams.key
+    size: 2048
+  delegate_to: localhost
+  when: dh_exists_on_server.stat.exists is false
+
+- name: Copy DH file from container to memory
+  ansible.builtin.slurp:
+    src: /tmp/dhparams.key
+  when: dh_exists_on_server.stat.exists is false
+  delegate_to: localhost
+  register: dh_slurp
+  run_once: true
+
+# - name: Debug
+#   ansible.builtin.debug:
+#     msg: "{{ dh_slurp }}"
+
+- name: Write DH key file file on server
+  ansible.builtin.copy:
+    dest: "{{ dest_diretorio }}/dhparams.key"
+    content: "{{ (dh_slurp.content | b64decode) }}"
+    mode: '0644'
+  when: dh_exists_on_server.stat.exists is false
+
+- name: Copy DH file from server to memory
+  ansible.builtin.slurp:
+    src: "{{ dest_diretorio }}/dhparams.key"
+#  when: tls_exists.stat.exists
+  when: dh_exists_on_server.stat.exists is true
+  register: dh_slurp
+  run_once: true
+
+- name: Write DH key file file on localhost
+  ansible.builtin.copy:
+    dest: "/tmp/dhparams.key"
+    content: "{{ (dh_slurp.content | b64decode) }}"
+    mode: '0644'
+  when: dh_exists_on_server.stat.exists is true
+  delegate_to: localhost
+

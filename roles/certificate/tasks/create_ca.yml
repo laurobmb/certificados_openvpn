@@ -1,0 +1,91 @@
+---
+
+- name: Check whether CA key file exists on server
+  ansible.builtin.stat:
+    path: "{{ dest_diretorio }}/ca.key"
+  register: ca_key_exists_on_server
+  run_once: true
+
+- name: Check whether CA pem file exists on server
+  ansible.builtin.stat:
+    path: "{{ dest_diretorio }}/ca.pem"
+  register: ca_pem_exists_on_server
+  run_once: true
+
+- name: Create private key with password protection
+  community.crypto.openssl_privatekey:
+    path: /tmp/ca.key
+    passphrase: "{{ secret_ca_passphrase }}"
+    size: 2048
+    cipher: auto
+  delegate_to: localhost
+  run_once: true
+  when: ca_key_exists_on_server.stat.exists is false
+
+- name: Create certificate signing request (CSR) for CA certificate
+  community.crypto.openssl_csr_pipe:
+    privatekey_path: /tmp/ca.key
+    privatekey_passphrase: "{{ secret_ca_passphrase }}"
+    common_name: ca.openvpn.conectado.local
+    country_name: BR
+    state_or_province_name: Pernambuco
+    locality_name: Recife
+    organization_name: Redhat
+    organizational_unit_name: CAPKI
+    email_address: ansible@redhat.com
+    use_common_name_for_san: false  # since we do not specify SANs, don't use CN as a SAN
+    basic_constraints:
+      - 'CA:TRUE'
+    basic_constraints_critical: true
+    key_usage:
+      - keyCertSign
+    key_usage_critical: true
+  register: ca_csr
+  delegate_to: localhost
+  run_once: true
+  when: ca_key_exists_on_server.stat.exists is false
+
+- name: Create self-signed CA certificate from CSR
+  community.crypto.x509_certificate:
+    path: /tmp/ca.pem
+    csr_content: "{{ ca_csr.csr }}"
+    privatekey_path: /tmp/ca.key
+    privatekey_passphrase: "{{ secret_ca_passphrase }}"
+    provider: selfsigned
+  delegate_to: localhost
+  run_once: true
+  when: ca_key_exists_on_server.stat.exists is false
+
+########################## COPIANDO CA KEY FILE PARA HOST ##########################
+
+- name: Read existing ca key file if exists
+  ansible.builtin.slurp:
+    src: /tmp/ca.key
+  when: ca_key_exists_on_server.stat.exists is false
+  delegate_to: localhost
+  register: ca_key_slurp
+  run_once: true
+
+- name: Write ca key file file on localhost
+  ansible.builtin.copy:
+    dest: "{{ dest_diretorio }}/ca.key"
+    content: "{{ (ca_key_slurp.content | b64decode) }}"
+    mode: '0644'
+  when: ca_key_exists_on_server.stat.exists is false
+
+########################## COPIANDO CA CRT FILE PARA HOST ##########################
+
+- name: Read existing ca crt file if exists
+  ansible.builtin.slurp:
+    src: /tmp/ca.pem
+  when: ca_pem_exists_on_server.stat.exists is false
+  delegate_to: localhost
+  register: ca_server_slurp
+  run_once: true
+
+- name: Write ca crt file file on localhost
+  ansible.builtin.copy:
+    dest: "{{ dest_diretorio }}/ca.pem"
+    content: "{{ (ca_server_slurp.content | b64decode) }}"
+    mode: '0644'
+  when: ca_pem_exists_on_server.stat.exists is false

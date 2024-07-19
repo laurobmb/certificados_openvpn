@@ -1,0 +1,41 @@
+local {{ ip_local }}
+port {{ item.0.port }}
+proto udp
+dev tun
+#alterar a rede conforme seu ambiente
+server {{ item.0.network }} {{ item.0.mask }}
+#Alterar a rota conforme seu ambiente
+push "route 192.168.0.0 255.255.255.0"
+duplicate-cn
+keepalive 10 120
+comp-lzo
+cipher AES-256-CBC
+persist-key
+persist-tun
+verb 3
+key-direction 0
+log /var/log/openvpn-{{ item.0.name.split('@')[0] | lower | regex_replace('[.|_]', '') }}.log
+log-append  /var/log/openvpn-{{ item.0.name.split('@')[0] | lower | regex_replace('[.|_]', '') }}-append.log
+status  /var/log/openvpn-{{ item.0.name.split('@')[0] | lower | regex_replace('[.|_]', '') }}-status.log
+
+<tls-auth>
+{{ tls_certificate_on_localhost.content | b64decode }}
+</tls-auth>
+
+<dh>
+{{ dh_certificate_on_localhost.content | b64decode }}
+</dh>
+
+<ca>
+{{ ca_certificate_on_localhost.content | b64decode }}
+</ca>
+
+<cert>
+{{ server_certificate_on_localhost.content | b64decode }}
+</cert>
+
+<key>
+{{ server_key_on_localhost.content | b64decode }}
+</key>
+
+

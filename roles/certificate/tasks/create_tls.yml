@@ -1,0 +1,64 @@
+---
+
+################################# TLS KEY ##########################################
+
+- name: Check whether TLS key file exists on server
+  ansible.builtin.stat:
+    path: "{{ dest_diretorio }}/tls.key"
+  register: tls_exists_on_server
+  run_once: true
+
+# - name: Debug
+#   ansible.builtin.debug:
+#     msg: "{{ tls_exists_on_server }}"
+
+# - name: Generate TLS Parameters with a different size (2048 bits)
+#   ansible.builtin.openssl_privatekey:
+#     path: /tmp/tls.key
+#     size: 2048
+#     type: RSA
+#   delegate_to: localhost
+#   when: tls_exists_on_server.stat.exists is false
+
+- name: Generate TLS Parameters with a different size (2048 bits)
+  ansible.builtin.command: openvpn --genkey --secret tls.key
+  args:
+    chdir: /tmp/
+  delegate_to: localhost
+  when: tls_exists_on_server.stat.exists is false
+
+
+- name: Copy TLS file from container to memory
+  ansible.builtin.slurp:
+    src: /tmp/tls.key
+  when: tls_exists_on_server.stat.exists is false
+  delegate_to: localhost
+  register: tls_slurp
+  run_once: true
+
+# - name: Debug
+#   ansible.builtin.debug:
+#     msg: "{{ tls_slurp }}"
+
+- name: Write TLS key file file on server
+  ansible.builtin.copy:
+    dest: "{{ dest_diretorio }}/tls.key"
+    content: "{{ (tls_slurp.content | b64decode) }}"
+    mode: '0644'
+  when: tls_exists_on_server.stat.exists is false
+
+- name: Copy TLS file from server to memory
+  ansible.builtin.slurp:
+    src: "{{ dest_diretorio }}/tls.key"
+#  when: tls_exists.stat.exists
+  when: tls_exists_on_server.stat.exists is true
+  register: tls_slurp
+  run_once: true
+
+- name: Write TLS key file file on localhost
+  ansible.builtin.copy:
+    dest: "/tmp/tls.key"
+    content: "{{ (tls_slurp.content | b64decode) }}"
+    mode: '0644'
+  when: tls_exists_on_server.stat.exists is true
+  delegate_to: localhost

@@ -1,0 +1,60 @@
+---
+- name: Catch tls.key file on localhost
+  ansible.builtin.slurp:
+    src: "/tmp/tls.key"
+  register: tls_certificate_on_localhost
+  run_once: true
+  delegate_to: localhost
+
+- name: Catch dhparams.key file on localhost
+  ansible.builtin.slurp:
+    src: "/tmp/dhparams.key"
+  register: dh_certificate_on_localhost
+  run_once: true
+  delegate_to: localhost
+
+- name: Catch server certificate file on localhost
+  ansible.builtin.slurp:
+    src: "/tmp/server.pem"
+  register: server_certificate_on_localhost
+  run_once: true
+  delegate_to: localhost
+
+- name: Catch server key file on localhost
+  ansible.builtin.slurp:
+    src: "/tmp/server.key"
+  register: server_key_on_localhost
+  run_once: true
+  delegate_to: localhost
+
+- name: Catch ca certificate file on localhost
+  ansible.builtin.slurp:
+    src: "/tmp/ca.pem"
+  register: ca_certificate_on_localhost
+  run_once: true
+  delegate_to: localhost
+
+- name: Catch ca key file on localhost
+  ansible.builtin.slurp:
+    src: "/tmp/ca.key"
+  register: ca_key_on_localhost
+  run_once: true
+  delegate_to: localhost
+
+- name: Catch existing key file if exists
+  ansible.builtin.slurp:
+    src: /tmp/{{ item.0.name.split('@')[0] | lower | regex_replace('[.|_]', '') }}.key
+  with_together:
+    - "{{ user_openvpn }}"
+  register: keys_clients_on_localhost
+  run_once: true
+  delegate_to: localhost
+
+- name: Catch existing certificate file if exists
+  ansible.builtin.slurp:
+    src: /tmp/{{ item.0.name.split('@')[0] | lower | regex_replace('[.|_]', '') }}.pem
+  with_together:
+    - "{{ user_openvpn }}"
+  register: pem_clients_on_localhost
+  run_once: true
+  delegate_to: localhost

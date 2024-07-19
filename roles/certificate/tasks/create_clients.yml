@@ -1,0 +1,312 @@
+---
+
+############## verifica se o certificado e a chave existe ou nao no servidor
+
+- name: Check whether CLIENTS key file exists on server
+  ansible.builtin.stat:
+    path: "{{ dest_diretorio }}/{{ item.name.split('@')[0] | lower | regex_replace('[.|_]', '') }}.key"
+  register: client_key_exists_on_server
+  loop: "{{ user_openvpn }}"
+
+- name: Check whether CLIENTS pem file exists on server
+  ansible.builtin.stat:
+    path: "{{ dest_diretorio }}/{{ item.name.split('@')[0] | lower | regex_replace('[.|_]', '') }}.pem"
+  register: client_pem_exists_on_server
+  loop: "{{ user_openvpn }}"
+
+# - name: DEBUG
+#   ansible.builtin.debug:
+#     msg: "{{ client_key_exists_on_server }}"
+
+- name: Copy CLIENTS.pem from server
+  ansible.builtin.slurp:
+    src: "{{ dest_diretorio }}/{{ item.0.name.split('@')[0] | lower | regex_replace('[.|_]', '') }}.pem"
+  register: pem_clients_on_server
+  run_once: true
+  when: item.1.stat.exists is true
+  with_together:
+    - "{{ user_openvpn }}"
+    - "{{ client_pem_exists_on_server.results }}"
+
+- name: Copy CLIENTS.key from server
+  ansible.builtin.slurp:
+    src: "{{ dest_diretorio }}/{{ item.0.name.split('@')[0] | lower | regex_replace('[.|_]', '') }}.key"
+  register: keys_clients_on_server
+  run_once: true
+  when: item.1.stat.exists is true
+  with_together:
+    - "{{ user_openvpn }}"
+    - "{{ client_key_exists_on_server.results }}"
+
+
+# - name: DEBUG keys_clients_on_server
+#   ansible.builtin.debug:
+#     msg: "{{ keys_clients_on_server }}"
+
+
+
+- name: Write CLIENTS.key and CLIENTS.pem on localhost
+  ansible.builtin.copy:
+    dest: "/tmp/{{ item.1.source | basename }}"
+    content: "{{ (item.1.content | b64decode) }}"
+    mode: '0644'
+  with_together:
+    - "{{ user_openvpn }}"
+    - "{{ pem_clients_on_server.results }}"
+    - "{{ client_pem_exists_on_server.results }}"
+  delegate_to: localhost
+  when: item.2.stat.exists is true
+
+- name: Write CLIENTS.key and CLIENTS.pem on localhost
+  ansible.builtin.copy:
+    dest: "/tmp/{{ item.1.source | basename }}"
+    content: "{{ (item.1.content | b64decode) }}"
+    mode: '0644'
+  with_together:
+    - "{{ user_openvpn }}"
+    - "{{ keys_clients_on_server.results }}"
+    - "{{ client_pem_exists_on_server.results }}"
+  delegate_to: localhost
+  when: item.2.stat.exists is true
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+############## Copia o certificado e chave da ca para o container caso a ca nao tenha sido criada no container 
+- name: Copy ca.key and ca.pem from server
+  ansible.builtin.slurp:
+    src: "{{ item }}"
+  loop:
+    - "{{ dest_diretorio }}/ca.pem"
+    - "{{ dest_diretorio }}/ca.key"
+  register: ca_new_slurp
+  run_once: true
+  when: ca_key_exists_on_server.stat.exists is true
+
+# - name: DEBUG
+#   ansible.builtin.debug:
+#     msg: "{{ item.content }}"
+#   loop: "{{ ca_new_slurp.results }}"
+#   delegate_to: localhost
+#   run_once: true
+#   when: ca_key_exists_on_server.stat.exists is true
+
+- name: Write key file fica.key and ca.pem on localhost
+  ansible.builtin.copy:
+    dest: "/tmp/{{ item.source | basename }}"
+    content: "{{ (item.content | b64decode) }}"
+    mode: '0644'
+  loop: "{{ ca_new_slurp.results }}"
+  delegate_to: localhost
+  when: ca_key_exists_on_server.stat.exists is true
+
+
+########################## Use the CA to sign a certificate ##########################
+
+- name: Create private key for new certificate on localhost
+  community.crypto.openssl_privatekey:
+    path: /tmp/{{ item.0.name.split('@')[0] | lower | regex_replace('[.|_]', '') }}.key
+  delegate_to: localhost
+  with_together:
+    - "{{ user_openvpn }}"
+    - "{{ client_key_exists_on_server.results }}"
+  run_once: true
+  when: item.1.stat.exists is false
+
+- name: Create certificate signing request (CSR) for new certificate
+  community.crypto.openssl_csr_pipe:
+    privatekey_path: /tmp/{{ item.0.name.split('@')[0] | lower | regex_replace('[.|_]', '') }}.key
+    common_name: "{{ item.0.name.split('@')[0] | lower | regex_replace('[.|_]', '') }}.openvpn.conectado.local"
+    country_name: BR
+    state_or_province_name: Pernambuco
+    locality_name: Recife
+    organization_name: Redhat
+    organizational_unit_name: Consulting
+    email_address: lagomes@redhat.com
+    subject_alt_name:
+      - "DNS:ansible.com"
+      - "DNS:www.ansible.com"
+      - "DNS:docs.ansible.com"
+  delegate_to: localhost
+  when: item.1.stat.exists is false
+  with_together:
+    - "{{ user_openvpn }}"
+    - "{{ client_key_exists_on_server.results }}"
+  register: csr
+  run_once: true
+
+- name: Check whether certificate exists
+  ansible.builtin.stat:
+    path: /tmp/{{ item.0.name.split('@')[0] | lower | regex_replace('[.|_]', '') }}.pem
+  delegate_to: localhost
+  with_together:
+    - "{{ user_openvpn }}"
+    - "{{ client_key_exists_on_server.results }}"
+  register: certificate_exists
+  run_once: true
+
+# - name: DEBUG
+#   ansible.builtin.debug:
+#     msg: "{{ item.stat.exists }}"
+#   loop: "{{ certificate_exists.results }}"
+#   when:
+#     - debug == 1
+
+- name: Read existing certificate if exists
+  ansible.builtin.slurp:
+    src: /tmp/{{ item.0.name.split('@')[0] | lower | regex_replace('[.|_]', '') }}.pem
+  when: 
+    - (item.1.stat.exists)
+    - (item.2.stat.exists is false)
+  delegate_to: localhost
+  with_together:
+    - "{{ user_openvpn }}"
+    - "{{ certificate_exists.results }}"
+    - "{{ client_key_exists_on_server.results }}"
+  register: certificate
+  run_once: true
+
+- name: Sign certificate with our CA
+  community.crypto.x509_certificate_pipe:
+    content: "{{ (item.0.content | b64decode) if item.1.stat.exists else omit }}"
+    csr_content: "{{ item.2.csr }}"
+    provider: ownca
+    ownca_path: /tmp/ca.pem
+    ownca_privatekey_path: /tmp/ca.key
+    ownca_privatekey_passphrase: "{{ secret_ca_passphrase }}"
+    ownca_not_after: +365d  # valid for one year
+    ownca_not_before: "-1d"  # valid since yesterday
+  delegate_to: localhost
+  with_together:
+    - "{{ certificate.results }}"
+    - "{{ certificate_exists.results }}"
+    - "{{ csr.results }}"
+    - "{{ client_key_exists_on_server.results }}"
+  register: certificate
+  run_once: true
+  when: item.3.stat.exists is false
+
+- name: Write certificate file on localhost
+  ansible.builtin.copy:
+    dest: "{{ dest_diretorio }}/{{ item.0.name.split('@')[0] | lower | regex_replace('[.|_]', '') }}.pem"
+    content: "{{ item.1.certificate }}"
+    mode: '0644'
+  when:
+    - (item.1 is changed)
+    - (item.2.stat.exists is false)
+  with_together:
+    - "{{ user_openvpn }}"
+    - "{{ certificate.results }}"
+    - "{{ client_key_exists_on_server.results }}"
+
+########################## COPIANDO KEY FILE PARA HOST ##########################
+
+- name: Check whether key file exists
+  ansible.builtin.stat:
+    path: /tmp/{{ item.0.name.split('@')[0] | lower | regex_replace('[.|_]', '') }}.key
+  delegate_to: localhost
+  with_together: 
+    - "{{ user_openvpn }}"
+    - "{{ client_key_exists_on_server.results }}"
+  register: key_exists
+  run_once: true
+  when:
+    - (item.1.stat.exists is false)
+
+# - name: DEBUG
+#   ansible.builtin.debug:
+#     msg: "{{ item.stat.exists }}"
+#   loop: "{{ key_exists.results }}"
+#   delegate_to: localhost
+#   run_once: true
+#   when:
+#     - debug == 1
+
+- name: Read existing key file if exists
+  ansible.builtin.slurp:
+    src: /tmp/{{ item.0.name.split('@')[0] | lower | regex_replace('[.|_]', '') }}.key
+  when:
+#    - (item.1.stat.exists)
+    - (item.2.stat.exists is false)
+  delegate_to: localhost
+  with_together:
+    - "{{ user_openvpn }}"
+    - "{{ key_exists.results }}"
+    - "{{ client_key_exists_on_server.results }}"
+  register: keys_slurp
+  run_once: true
+
+# - name: DEBUG
+#   ansible.builtin.debug:
+#     msg: "{{ item }}"
+#   loop: "{{ keys_slurp.results }}"
+#   delegate_to: localhost
+#   run_once: true
+#   when:
+#     - debug == 1
+
+- name: Write key file file on server
+  ansible.builtin.copy:
+    dest: "{{ dest_diretorio }}/{{ item.0.name.split('@')[0] | lower | regex_replace('[.|_]', '') }}.key"
+    content: "{{ (item.2.content | b64decode) }}"
+    mode: '0644'
+  when:
+#    - (item.1.stat.exists)
+    - (item.3.stat.exists is false)
+  with_together:
+    - "{{ user_openvpn }}"
+    - "{{ key_exists.results }}"
+    - "{{ keys_slurp.results }}"
+    - "{{ client_key_exists_on_server.results }}"
+
+- name: Write sever file file on localhost
+  ansible.builtin.copy:
+    dest: "/tmp/{{ item.0.name.split('@')[0] | lower | regex_replace('[.|_]', '') }}.pem"
+    content: "{{ (item.1.certificate) }}"
+    mode: '0644'
+  when:
+#  - (item.2.stat.exists)
+    - (item.3.stat.exists is false)
+  delegate_to: localhost
+  with_together:
+    - "{{ user_openvpn }}"
+    - "{{ certificate.results }}"
+    - "{{ key_exists.results }}"
+    - "{{ client_key_exists_on_server.results }}"
+
+########################## Gerando arquivos do OPENVPN ##########################
+
+# - name: Create file server.conf
+#   ansible.builtin.template:
+#     src: server.conf.j2
+#     dest: /etc/openvpn/server/server-{{ item.0.name.split('@')[0] | lower | regex_replace('[.|_]', '') }}.conf
+#     mode: '0644'
+#     owner: root
+#     group: root
+#   with_together:
+#     - "{{ user_openvpn }}"
+# 
+# - name: Create file clients.ovpn
+#   ansible.builtin.template:
+#     src: client.ovpn.j2
+#     dest: /etc/openvpn/client/{{ item.0.name.split('@')[0] | lower | regex_replace('[.|_]', '') }}.ovpn
+#     mode: '0644'
+#     owner: root
+#     group: root
+#   with_together:
+#     - "{{ user_openvpn }}"
+#     - "{{ keys_slurp.results }}"
+#     - "{{ certificate.results }}"

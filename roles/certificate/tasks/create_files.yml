@@ -1,0 +1,39 @@
+---
+- name: Catch files on localhost
+  ansible.builtin.import_tasks: catch_files_localhost.yml
+  
+# - name: Catch files on server
+#   ansible.builtin.import_tasks: catch_files_server.yml
+#   ignore_errors: true
+
+- name: DEBUG files
+  ansible.builtin.shell: ls -lh /tmp/
+  delegate_to: localhost
+  register: check_files
+  changed_when: check_files.rc != 0 # <- Uses the return c
+
+- name: DEBUG
+  ansible.builtin.debug:
+    msg: "{{ check_files }}"
+
+- name: Create file server.conf
+  ansible.builtin.template:
+    src: server.conf.j2
+    dest: /etc/openvpn/server/server-{{ item.0.name.split('@')[0] | lower | regex_replace('[.|_]', '') }}.conf
+    mode: '0644'
+    owner: root
+    group: root
+  with_together:
+    - "{{ user_openvpn }}"
+
+- name: Create file clients.ovpn
+  ansible.builtin.template:
+    src: client.ovpn.j2
+    dest: /etc/openvpn/client/{{ item.0.name.split('@')[0] | lower | regex_replace('[.|_]', '') }}.ovpn
+    mode: '0644'
+    owner: root
+    group: root
+  with_together:
+    - "{{ user_openvpn }}"
+    - "{{ keys_clients_on_localhost.results }}"
+    - "{{ pem_clients_on_localhost.results }}"

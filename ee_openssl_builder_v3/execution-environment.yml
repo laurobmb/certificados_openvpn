@@ -29,6 +29,10 @@ additional_build_steps:
     prepend_final: |
       RUN whoami
       RUN cat /etc/os-release
+      RUN rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
+      RUN /usr/bin/microdnf repolist
+      RUN /usr/bin/microdnf install openvpn
+      RUN /usr/bin/microdnf clean all
     append_final: |
       RUN curl -o /usr/bin/butane -L -O https://mirror.openshift.com/pub/openshift-v4/clients/butane/latest/butane
 
