@@ -3,9 +3,9 @@
 This project aims to facilitate the creation of a certification entity and a few more certificates signed by that same entity, CA Certificate Authority, the project runs within an execution and sends the certificates to the destination hosts.
 
 ## Build Execution
-
+    ansible-builder build -t quay.io/lagomes/ee-openvpn:v1 -v 3
 ## Execute navigator
+    ansible-navigator run main.yml -l raspibery
 
-## Create certificates
-
+    
 
