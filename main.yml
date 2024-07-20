@@ -11,29 +11,32 @@
     user_openvpn:
       - { name: lagomes@gmail.com, port: 1194, network: 10.8.201.0, mask: 255.255.255.240, ip_externo: 45.171.124.18 }
       - { name: liz@gmail.com, port: 1195, network: 10.8.202.0, mask: 255.255.255.240, ip_externo: 45.171.124.18 }
-#      - { name: camila@gmail.com,  port: 1196, network: 10.8.203.0, mask: 255.255.255.240, ip_externo: 45.171.124.18 }
-#      - { name: peguel@gmail.com,  port: 1197, network: 10.8.204.0, mask: 255.255.255.240, ip_externo: 45.171.124.18 }
+      - { name: camila@gmail.com, port: 1196, network: 10.8.203.0, mask: 255.255.255.240, ip_externo: 45.171.124.18 }
+      - { name: peguel@gmail.com, port: 1197, network: 10.8.204.0, mask: 255.255.255.240, ip_externo: 45.171.124.18 }
+      - { name: carol@gmail.com, port: 1198, network: 10.8.205.0, mask: 255.255.255.240, ip_externo: 45.171.124.18 }
+      - { name: cibele@gmail.com, port: 1199, network: 10.8.206.0, mask: 255.255.255.240, ip_externo: 45.171.124.18 }
+      - { name: pedrosilva@gmail.com, port: 1120, network: 10.8.207.0, mask: 255.255.255.240, ip_externo: 45.171.124.18 }
 
-  pre_tasks:
-    - name: Atualizar a lista de pacotes APT
-      ansible.builtin.apt:
-        update_cache: true
+#  pre_tasks:
+#    - name: Atualizar a lista de pacotes APT
+#      ansible.builtin.apt:
+#        update_cache: true
+#
+#    - name: Install Openvpn
+#      ansible.builtin.apt:
+#        name: openvpn
+#        state: present
+#
+#    - name: Create directory
+#      ansible.builtin.file:
+#        path: "{{ dest_diretorio }}"
+#        state: directory
+#        recurse: true
+#        owner: root
+#        group: root
 
-    - name: Install Openvpn
-      ansible.builtin.apt:
-        name: openvpn
-        state: present
-
-    - name: Create directory
-      ansible.builtin.file:
-        path: "{{ dest_diretorio }}"
-        state: directory
-        recurse: true
-        owner: root
-        group: root
-
-  roles:
-    - role: certificate
+#  roles:
+#    - role: certificate
 
   tasks:
     - name: Enable router
@@ -55,3 +58,10 @@
       ansible.builtin.command: sysctl -p
       register: my_output
       changed_when: my_output.rc != 0
+
+    - name: Make sure a service unit is running
+      ansible.builtin.systemd_service:
+        state: started
+        name: "openvpn-server@server-{{ item.name.split('@')[0] | lower | regex_replace('[.|_]', '') }}"
+        enabled: true
+      loop: "{{ user_openvpn }}"
