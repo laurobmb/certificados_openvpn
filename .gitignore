@@ -1,3 +1,4 @@
 execution_openssl_builder_v3/context/*
 logs/ansible-navigator.log
 artifacts/ansible_artifact.jsonl
+files/*.ovpn
