@@ -9,13 +9,9 @@
     dest_diretorio: /etc/openvpn/ssl
     ip_local: 192.168.0.132
     user_openvpn:
-      - { name: lagomes@gmail.com, port: 1194, network: 10.8.201.0, mask: 255.255.255.240, ip_externo: 45.171.124.18 }
-      - { name: liz@gmail.com, port: 1195, network: 10.8.202.0, mask: 255.255.255.240, ip_externo: 45.171.124.18 }
-      - { name: camila@gmail.com, port: 1196, network: 10.8.203.0, mask: 255.255.255.240, ip_externo: 45.171.124.18 }
-      - { name: peguel@gmail.com, port: 1197, network: 10.8.204.0, mask: 255.255.255.240, ip_externo: 45.171.124.18 }
-      - { name: carol@gmail.com, port: 1198, network: 10.8.205.0, mask: 255.255.255.240, ip_externo: 45.171.124.18 }
-      - { name: cibele@gmail.com, port: 1199, network: 10.8.206.0, mask: 255.255.255.240, ip_externo: 45.171.124.18 }
-      - { name: pedrosilva@gmail.com, port: 1120, network: 10.8.207.0, mask: 255.255.255.240, ip_externo: 45.171.124.18 }
+      - { name: laurobmb@gmail.com, port: 1194, network: 10.8.201.0, mask: 255.255.255.240, ip_externo: 45.171.124.18 }
+      - { name: lagomes@redhat.com, port: 1195, network: 10.8.202.0, mask: 255.255.255.240, ip_externo: 45.171.124.18 }
+      - { name: laurobmb@hotmail.com, port: 1196, network: 10.8.203.0, mask: 255.255.255.240, ip_externo: 45.171.124.18 }
 
   pre_tasks:
     - name: Atualizar a lista de pacotes APT
