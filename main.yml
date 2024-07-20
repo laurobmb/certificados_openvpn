@@ -9,9 +9,9 @@
     dest_diretorio: /etc/openvpn/ssl
     ip_local: 192.168.0.132
     user_openvpn:
-      - { name: laurobmb@gmail.com, port: 1194, network: 10.8.201.0, mask: 255.255.255.240, ip_externo: 45.171.124.18 }
-      - { name: lagomes@redhat.com, port: 1195, network: 10.8.202.0, mask: 255.255.255.240, ip_externo: 45.171.124.18 }
-      - { name: laurobmb@hotmail.com, port: 1196, network: 10.8.203.0, mask: 255.255.255.240, ip_externo: 45.171.124.18 }
+      - { name: laurobmb@gmail.com, port: 1194, network: 10.8.201.0, mask: 255.255.255.240, ip_externo: 45.171.124.18,   routes: ["192.168.0.0 255.255.255.0","192.168.1.0 255.255.255.0"]}
+      - { name: lagomes@redhat.com, port: 1195, network: 10.8.202.0, mask: 255.255.255.240, ip_externo: 45.171.124.18,   routes: ["192.168.0.0 255.255.255.0","192.168.3.0 255.255.255.0","192.168.5.0 255.255.255.0","192.168.6.0 255.255.255.0"]}
+      - { name: lauro@hotmail.com, port: 1196, network: 10.8.203.0, mask: 255.255.255.240, ip_externo: 45.171.124.18, routes: ["192.168.0.0 255.255.255.0","192.168.4.0 255.255.255.0","192.168.5.0 255.255.255.0"]}
 
   pre_tasks:
     - name: Atualizar a lista de pacotes APT

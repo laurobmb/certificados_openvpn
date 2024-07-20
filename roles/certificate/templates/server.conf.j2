@@ -5,7 +5,9 @@ dev tun
 #alterar a rede conforme seu ambiente
 server {{ item.0.network }} {{ item.0.mask }}
 #Alterar a rota conforme seu ambiente
-push "route 192.168.0.0 255.255.255.0"
+{% for rota in item.0.routes %}
+push "route {{ rota }}"
+{% endfor %}
 duplicate-cn
 keepalive 10 120
 comp-lzo
