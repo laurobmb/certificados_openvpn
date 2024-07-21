@@ -23,7 +23,7 @@
         ],
         routes: [
           "192.168.0.0 255.255.255.0",
-          "192.168.1.0 255.255.255.0"
+          "192.168.1.0 255.255.255.0",
         ]
       }
 
@@ -44,7 +44,7 @@
           "192.168.0.0 255.255.255.0",
           "192.168.3.0 255.255.255.0",
           "192.168.5.0 255.255.255.0",
-          "192.168.6.0 255.255.255.0"
+          "192.168.6.0 255.255.255.0",
         ]
       }
 
@@ -63,46 +63,45 @@
         routes: [
           "192.168.0.0 255.255.255.0",
           "192.168.4.0 255.255.255.0",
-          "192.168.5.0 255.255.255.0"
+          "192.168.5.0 255.255.255.0",
         ]
       }
 
-#  pre_tasks:
-#    - name: Atualizar a lista de pacotes APT
-#      ansible.builtin.apt:
-#        update_cache: true
-#
-#    - name: Install Openvpn
-#      ansible.builtin.apt:
-#        name: "{{ item }}"
-#        state: present
-#      loop:
-#        - iptables
-#        - openvpn
-#
-#    - name: Create directory
-#      ansible.builtin.file:
-#        path: "{{ dest_diretorio }}"
-#        state: directory
-#        recurse: true
-#        owner: root
-#        group: root
-#
-#  roles:
-#    - role: certificate
+  pre_tasks:
+    - name: Atualizar a lista de pacotes APT
+      ansible.builtin.apt:
+        update_cache: true
+
+    - name: Install Openvpn
+      ansible.builtin.apt:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - iptables
+        - openvpn
+
+    - name: Create directory
+      ansible.builtin.file:
+        path: "{{ dest_diretorio }}"
+        state: directory
+        recurse: true
+        owner: root
+        group: root
+
+  roles:
+    - role: certificate
 
   tasks:
 
-#    - name: Enable router
-#      ansible.builtin.import_tasks: enable_router.yml
+    - name: Enable router
+      ansible.builtin.import_tasks: enable_router.yml
 
     - name: Edit Iptables
       ansible.builtin.import_tasks: iptables.yml
 
-#    - name: Make sure a service unit is running
-#      ansible.builtin.systemd_service:
-#        state: started
-#        name: "openvpn-server@server-{{ item.name.split('@')[0] | lower | regex_replace('[.|_]', '') }}"
-#        enabled: true
-#      loop: "{{ user_openvpn }}"
-#
+    - name: Make sure a service unit is running
+      ansible.builtin.systemd_service:
+        state: started
+        name: "openvpn-server@server-{{ item.name.split('@')[0] | lower | regex_replace('[.|_]', '') }}"
+        enabled: true
+      loop: "{{ user_openvpn }}"

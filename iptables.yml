@@ -20,7 +20,7 @@
   ansible.builtin.debug:
     msg: "{{ user_openvpn | selectattr('permit_ranges', 'defined') | map(attribute='permit_ranges') }}"
 
-- name: Permitir encaminhamento de pacotes de {{ item.0.name }} de {{ item.0.interface_tunel }} para {{ interface_local }} (pacotes estabelecidos/relacionados)
+- name: Permitir encaminhamento de pacotes da interface do tunel para a rede interna (pacotes estabelecidos/relacionados)
   ansible.builtin.iptables:
     table: filter
     chain: FORWARD
@@ -34,8 +34,8 @@
   loop: "{{ query('subelements', user_openvpn, 'permit_ranges') }}"
   vars:
     interface_local: wlan0
-  
-- name: Permitir encaminhamento de pacotes de {{ interface_local }} para {{ item.interface_tunel }}
+
+- name: Permitir encaminhamento de pacotes de interface_local para item.interface_tunel
   ansible.builtin.iptables:
     table: filter
     chain: FORWARD
