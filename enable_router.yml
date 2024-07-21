@@ -1,0 +1,20 @@
+---
+- name: Enable router
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_forward
+    value: '1'
+    sysctl_set: true
+    state: present
+    reload: true
+
+- name: Ensure IP forwarding is enabled on boot
+  ansible.builtin.lineinfile:
+    path: /etc/sysctl.conf
+    regexp: '^net.ipv4.ip_forward'
+    line: 'net.ipv4.ip_forward = 1'
+    state: present
+
+- name: Apply sysctl configuration
+  ansible.builtin.command: sysctl -p
+  register: my_output
+  changed_when: my_output.rc != 0

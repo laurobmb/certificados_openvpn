@@ -1,7 +1,7 @@
 local {{ ip_local }}
 port {{ item.0.port }}
 proto udp
-dev tun
+dev {{ item.0.interface_tunel }}
 #alterar a rede conforme seu ambiente
 server {{ item.0.network }} {{ item.0.mask }}
 #Alterar a rota conforme seu ambiente

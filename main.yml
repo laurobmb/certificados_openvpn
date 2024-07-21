@@ -8,56 +8,101 @@
     secret_ca_passphrase: 1q2w3e4r
     dest_diretorio: /etc/openvpn/ssl
     ip_local: 192.168.0.132
+    interface_local: wlan0
     user_openvpn:
-      - { name: laurobmb@gmail.com, port: 1194, network: 10.8.201.0, mask: 255.255.255.240, ip_externo: 45.171.124.18,   routes: ["192.168.0.0 255.255.255.0","192.168.1.0 255.255.255.0"]}
-      - { name: lagomes@redhat.com, port: 1195, network: 10.8.202.0, mask: 255.255.255.240, ip_externo: 45.171.124.18,   routes: ["192.168.0.0 255.255.255.0","192.168.3.0 255.255.255.0","192.168.5.0 255.255.255.0","192.168.6.0 255.255.255.0"]}
-      - { name: lauro@hotmail.com, port: 1196, network: 10.8.203.0, mask: 255.255.255.240, ip_externo: 45.171.124.18, routes: ["192.168.0.0 255.255.255.0","192.168.4.0 255.255.255.0","192.168.5.0 255.255.255.0"]}
+      - {
+        name: laurobmb@gmail.com,
+        port: 1194,
+        network: 10.8.201.0,
+        mask: 255.255.255.240,
+        ip_externo: 45.171.124.18,
+        interface_tunel: tun0,
+        permit_ranges: [
+          "192.168.0.5-192.168.0.254",
+          "192.168.1.5-192.168.1.254",
+        ],
+        routes: [
+          "192.168.0.0 255.255.255.0",
+          "192.168.1.0 255.255.255.0"
+        ]
+      }
 
-  pre_tasks:
-    - name: Atualizar a lista de pacotes APT
-      ansible.builtin.apt:
-        update_cache: true
+      - {
+        name: lagomes@redhat.com,
+        port: 1195,
+        network: 10.8.202.0,
+        mask: 255.255.255.240,
+        ip_externo: 45.171.124.18,
+        interface_tunel: tun1,
+        permit_ranges: [
+          "192.168.2.5-192.168.2.254",
+          "192.168.3.5-192.168.3.254",
+          "192.168.4.5-192.168.4.254",
+          "192.168.5.5-192.168.5.254",
+        ],
+        routes: [
+          "192.168.0.0 255.255.255.0",
+          "192.168.3.0 255.255.255.0",
+          "192.168.5.0 255.255.255.0",
+          "192.168.6.0 255.255.255.0"
+        ]
+      }
 
-    - name: Install Openvpn
-      ansible.builtin.apt:
-        name: openvpn
-        state: present
+      - {
+        name: lauro@hotmail.com,
+        port: 1196,
+        network: 10.8.203.0,
+        mask: 255.255.255.240,
+        ip_externo: 45.171.124.18,
+        interface_tunel: tun2,
+        permit_ranges: [
+          "192.168.6.5-192.168.6.254",
+          "192.168.7.5-192.168.7.254",
+          "192.168.8.5-192.168.8.254"
+        ],
+        routes: [
+          "192.168.0.0 255.255.255.0",
+          "192.168.4.0 255.255.255.0",
+          "192.168.5.0 255.255.255.0"
+        ]
+      }
 
-    - name: Create directory
-      ansible.builtin.file:
-        path: "{{ dest_diretorio }}"
-        state: directory
-        recurse: true
-        owner: root
-        group: root
-
-  roles:
-    - role: certificate
+#  pre_tasks:
+#    - name: Atualizar a lista de pacotes APT
+#      ansible.builtin.apt:
+#        update_cache: true
+#
+#    - name: Install Openvpn
+#      ansible.builtin.apt:
+#        name: "{{ item }}"
+#        state: present
+#      loop:
+#        - iptables
+#        - openvpn
+#
+#    - name: Create directory
+#      ansible.builtin.file:
+#        path: "{{ dest_diretorio }}"
+#        state: directory
+#        recurse: true
+#        owner: root
+#        group: root
+#
+#  roles:
+#    - role: certificate
 
   tasks:
-    - name: Enable router
-      ansible.posix.sysctl:
-        name: net.ipv4.ip_forward
-        value: '1'
-        sysctl_set: true
-        state: present
-        reload: true
 
-    - name: Ensure IP forwarding is enabled on boot
-      ansible.builtin.lineinfile:
-        path: /etc/sysctl.conf
-        regexp: '^net.ipv4.ip_forward'
-        line: 'net.ipv4.ip_forward = 1'
-        state: present
+#    - name: Enable router
+#      ansible.builtin.import_tasks: enable_router.yml
 
-    - name: Apply sysctl configuration
-      ansible.builtin.command: sysctl -p
-      register: my_output
-      changed_when: my_output.rc != 0
+    - name: Edit Iptables
+      ansible.builtin.import_tasks: iptables.yml
 
-    - name: Make sure a service unit is running
-      ansible.builtin.systemd_service:
-        state: started
-        name: "openvpn-server@server-{{ item.name.split('@')[0] | lower | regex_replace('[.|_]', '') }}"
-        enabled: true
-      loop: "{{ user_openvpn }}"
+#    - name: Make sure a service unit is running
+#      ansible.builtin.systemd_service:
+#        state: started
+#        name: "openvpn-server@server-{{ item.name.split('@')[0] | lower | regex_replace('[.|_]', '') }}"
+#        enabled: true
+#      loop: "{{ user_openvpn }}"
+#

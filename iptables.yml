@@ -1,0 +1,50 @@
+---
+- name: Create directory /etc/iptables
+  ansible.builtin.file:
+    path: /etc/iptables
+    state: directory
+    mode: '0644'
+    recurse: true
+    owner: root
+    group: root
+
+- name: Adicionar regra de masquerading
+  ansible.builtin.iptables:
+    table: nat
+    chain: POSTROUTING
+    out_interface: "{{ interface_local }}"
+    jump: MASQUERADE
+    state: present
+
+- name: List ALL band members of ALL user_openvpn
+  ansible.builtin.debug:
+    msg: "{{ user_openvpn | selectattr('permit_ranges', 'defined') | map(attribute='permit_ranges') }}"
+
+- name: Permitir encaminhamento de pacotes de {{ item.0.name }} de {{ item.0.interface_tunel }} para {{ interface_local }} (pacotes estabelecidos/relacionados)
+  ansible.builtin.iptables:
+    table: filter
+    chain: FORWARD
+    in_interface: "{{ item.0.interface_tunel }}"
+    out_interface: "{{ interface_local }}"
+    dst_range: "{{ item.1 }}"
+    match: state
+    ctstate: RELATED,ESTABLISHED
+    jump: ACCEPT
+    state: present
+  loop: "{{ query('subelements', user_openvpn, 'permit_ranges') }}"
+  vars:
+    interface_local: wlan0
+  
+- name: Permitir encaminhamento de pacotes de {{ interface_local }} para {{ item.interface_tunel }}
+  ansible.builtin.iptables:
+    table: filter
+    chain: FORWARD
+    in_interface: "{{ interface_local }}"
+    out_interface: "{{ item.interface_tunel }}"
+    jump: ACCEPT
+    state: present
+  loop: "{{ user_openvpn }}"
+
+- name: Salvar regras do iptables
+  ansible.builtin.shell: iptables-save > /etc/iptables/rules.v4
+ 
