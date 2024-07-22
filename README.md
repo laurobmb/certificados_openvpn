@@ -21,6 +21,7 @@ This branch is intended to prepare a Raspberry Pi using RaspbianOS to use OpenVP
 	* Create client configuration files and place them in the /etc/openvpn/clients/ directory
 * Enable routing in RaspbianOS
 * Apply configurations in sysctl
+* Apply firewall rules on raspbian linux
 * Start and enable the created client services
 
 ## Build Execution
