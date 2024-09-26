@@ -69,17 +69,24 @@
       }
 
   pre_tasks:
-    - name: Atualizar a lista de pacotes APT
-      ansible.builtin.apt:
-        update_cache: true
 
-    - name: Install Openvpn
-      ansible.builtin.apt:
-        name: "{{ item }}"
-        state: present
-      loop:
-        - iptables
-        - openvpn
+    - name: Coletar o ansible_distribution
+      ansible.builtin.setup:
+        filter: ansible_distribution
+
+    - name: Debug
+      ansible.builtin.debug:
+        var: ansible_distribution
+
+    - name: Install packages raspberry
+      ansible.builtin.import_role:
+        name: packages_raspberry
+      when: ansible_distribution == "raspberry"
+
+    - name: Install packages fedora
+      ansible.builtin.import_role:
+        name: packages_fedora
+      when: ansible_distribution == "Fedora"
 
     - name: Create directory
       ansible.builtin.file:

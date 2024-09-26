@@ -1,0 +1,13 @@
+---
+- name: Atualizar a lista de pacotes APT
+  ansible.builtin.apt:
+    update_cache: true
+  
+- name: Install Openvpn
+  ansible.builtin.apt:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - iptables
+    - openvpn
+

@@ -1,0 +1,9 @@
+---
+  
+- name: Install Openvpn
+  ansible.builtin.dnf:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - firewalld
+    - openvpn
