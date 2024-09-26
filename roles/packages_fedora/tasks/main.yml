@@ -7,3 +7,12 @@
   loop:
     - firewalld
     - openvpn
+
+- name: Liberar as portas no SELINUX
+  with_together:
+    - "{{ user_openvpn }}"
+  community.general.seport:
+    ports: "{{ item.0.port }}"
+    proto: tcp
+    setype: openvpn_port_t
+    state: present

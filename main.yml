@@ -7,7 +7,7 @@
   vars:
     secret_ca_passphrase: 1q2w3e4r
     dest_diretorio: /etc/openvpn/ssl
-    ip_local: 192.168.0.132
+    ip_local: "{{ ansible_host }}"
     interface_local: wlan0
 
     user_openvpn:

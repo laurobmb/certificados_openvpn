@@ -1,5 +1,5 @@
 [fedora]
-192.168.0.250 ansible_hostname=fedora
+fedora-server ansible_host=192.168.0.250
 
 [raspibery]
-192.168.0.132 ansible_hostname=raspivpn
+raspivpn ansible_host=192.168.0.132
