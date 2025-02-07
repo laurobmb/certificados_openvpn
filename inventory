@@ -1,5 +1,5 @@
 [fedora]
-fedora-server ansible_host=192.168.0.250
+fedora-server ansible_host=192.168.0.195
 
 [raspibery]
 raspivpn ansible_host=192.168.0.132

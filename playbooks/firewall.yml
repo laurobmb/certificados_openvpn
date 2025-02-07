@@ -1,0 +1,22 @@
+---
+- name: Habilitar masquerade para permitir forwarding
+  ansible.builtin.firewalld:
+    masquerade: yes
+    permanent: yes
+    state: enabled
+    immediate: yes
+
+- name: Permitir FORWARD entre 192.168.0.0/24 e 192.168.1.0/24
+  loop: 
+    - 'rule family="ipv4" source address="0.0.0.0/0" destination address="192.168.1.0/24" accept'
+    - 'rule family="ipv4" source address="0.0.0.0/0" destination address="192.168.0.0/24" accept'
+  ansible.builtin.firewalld:
+    rich_rule: "{{ item }}"
+    permanent: yes
+    state: enabled
+    immediate: yes
+
+- name: Reload firewalld para aplicar as regras
+  ansible.builtin.systemd:
+    name: firewalld
+    state: reloaded

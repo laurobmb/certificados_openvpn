@@ -9,10 +9,15 @@
     - openvpn
 
 - name: Liberar as portas no SELINUX
-  with_together:
+  vars:
+    protocols:
+      - tcp
+      - udp
+  with_nested:
     - "{{ user_openvpn }}"
+    - "{{ protocols }}"
   community.general.seport:
     ports: "{{ item.0.port }}"
-    proto: tcp
+    proto: "{{ item.1 }}"
     setype: openvpn_port_t
     state: present

@@ -16,7 +16,7 @@
         port: 1194,
         network: 10.8.201.0,
         mask: 255.255.255.240,
-        ip_externo: 125.172.114.19,
+        ip_externo: 45.171.124.18,
         interface_tunel: tun0,
         permit_ranges: [
           "192.168.0.5-192.168.0.254",
@@ -33,38 +33,32 @@
         port: 1195,
         network: 10.8.202.0,
         mask: 255.255.255.240,
-        ip_externo: 125.172.114.19,
+        ip_externo: 45.171.124.18,
         interface_tunel: tun1,
         permit_ranges: [
-          "192.168.2.5-192.168.2.254",
-          "192.168.3.5-192.168.3.254",
-          "192.168.4.5-192.168.4.254",
-          "192.168.5.5-192.168.5.254",
+          "192.168.0.5-192.168.0.254",
+          "192.168.1.5-192.168.1.254",
         ],
         routes: [
           "192.168.0.0 255.255.255.0",
-          "192.168.3.0 255.255.255.0",
-          "192.168.5.0 255.255.255.0",
-          "192.168.6.0 255.255.255.0",
+          "192.168.1.0 255.255.255.0",
         ]
       }
 
       - {
-        name: lauro@hotmail.com,
+        name: lauro.gomes@redhat.com,
         port: 1196,
         network: 10.8.203.0,
         mask: 255.255.255.240,
-        ip_externo: 125.172.114.19,
+        ip_externo: 45.171.124.18,
         interface_tunel: tun2,
         permit_ranges: [
-          "192.168.6.5-192.168.6.254",
-          "192.168.7.5-192.168.7.254",
-          "192.168.8.5-192.168.8.254"
+          "192.168.0.5-192.168.0.254",
+          "192.168.1.5-192.168.1.254",
         ],
         routes: [
           "192.168.0.0 255.255.255.0",
-          "192.168.4.0 255.255.255.0",
-          "192.168.5.0 255.255.255.0",
+          "192.168.1.0 255.255.255.0",
         ]
       }
 
@@ -102,10 +96,15 @@
   tasks:
 
     - name: Enable router
-      ansible.builtin.import_tasks: enable_router.yml
+      ansible.builtin.import_tasks: playbooks/enable_router.yml
 
     - name: Edit Iptables
-      ansible.builtin.import_tasks: iptables.yml
+      ansible.builtin.import_tasks: playbooks/iptables.yml
+      when: ansible_distribution == "raspberry"
+
+    - name: Edit firewall-cmd
+      ansible.builtin.import_tasks: playbooks/firewall.yml
+      when: ansible_distribution == "Fedora"
 
     - name: Make sure a service unit is running
       ansible.builtin.systemd_service:
